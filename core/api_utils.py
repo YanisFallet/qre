@@ -104,16 +104,10 @@ def update_one_alert(session : requests.Session, headers, alert_serie : tuple):
 def update_all_alerts(email : str, password : str):
     session, headers = authenticate(email, password)
     df_alerts = get_alerts(session, headers)
-    print(df_alerts)
     with ThreadPoolExecutor() as executor:
-        print("Updating alerts...")
         executor.map(partial(update_one_alert, session, headers), df_alerts.iterrows())
 
 if __name__ == "__main__":
     with open('./logs.json', 'r') as f:
         config = json.load(f)
-    # s, headers = authenticate(**config)
-    # alert = get_alerts(s, headers).iloc[4,:]
-    # print(alert)
-    # update_one_alert(s, headers, alert)
     update_all_alerts(**config)

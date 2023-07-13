@@ -1,13 +1,12 @@
 import requests
 import logging
-import json
 import pandas as pd
 import sqlite3
 from unidecode import unidecode
 from functools import partial
 from concurrent.futures import ThreadPoolExecutor
 
-logging.basicConfig(filename="api_utils.log", filemode="w" , level = logging.INFO, format = "%(asctime)s-%(levelname)s-%(message)s")
+logging.basicConfig(filename='api_utils.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def authenticate(email, password):
     auth_url = 'https://api.jinka.fr/apiv2/user/auth'
@@ -19,7 +18,7 @@ def authenticate(email, password):
         access_token = r_auth.json()['access_token']
     else:
         logging.critical(f'Authentification failed with error {r_auth.status_code}')
-        return None, None
+        raise Exception(f'Authentification failed with error {r_auth.status_code}')
 
     headers = {
     'Accept': '*/*',
@@ -67,7 +66,7 @@ def get_alerts(session : requests.Session, headers):
 
 def update_one_alert(session : requests.Session, headers, alert_serie : tuple):
     alert_serie_content = alert_serie[1]
-    city = unidecode(alert_serie_content['user_name'].replace(' ', '_').lower())
+    city = unidecode(alert_serie_content['user_name'].replace(' ', '_').replace("'", "_").lower())
     root_url = 'https://api.jinka.fr/apiv2/alert/' + str(alert_serie_content["id"]) + '/dashboard'
     df_apparts = pd.DataFrame(columns= ['id', 'source', 'source_label', 'search_type', 'owner_type', \
         'rent', 'area', 'room', 'bedroom', 'floor', 'type', 'buy_type', 'city', 'postal_code', 'lat', 'lng',  'furnished', \
@@ -93,7 +92,6 @@ def update_one_alert(session : requests.Session, headers, alert_serie : tuple):
                     break
                 else:
                     df_apparts = pd.concat([df_apparts,pd.DataFrame.from_records(data=[ad])], axis=0, join="inner")
-            logging.info(f"Page {page} / {alert_serie_content['nb_pages']} has been processed")
             page += 1            
         logging.info(f'{len(df_apparts)} new ads have been found for alert {alert_serie_content["user_name"]}')
         df_apparts["pm2"] = df_apparts["rent"] / df_apparts["area"]
@@ -107,7 +105,6 @@ def update_all_alerts(email : str, password : str):
     with ThreadPoolExecutor() as executor:
         executor.map(partial(update_one_alert, session, headers), df_alerts.iterrows())
 
+
 if __name__ == "__main__":
-    with open('./logs.json', 'r') as f:
-        config = json.load(f)
-    update_all_alerts(**config)
+    get_alerts(*authenticate('yanis.fallet@gmail.com', 'yanoufallet38618'))

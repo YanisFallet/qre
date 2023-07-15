@@ -1,6 +1,18 @@
-import os, sys, re
+import os, sys, sqlite3
 import pandas as pd
 import streamlit as st
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+import plotly.express as px
+from plotly.subplots import make_subplots
+
+import invest_
+import rent_
+import macro_
+import combined_
+
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(parent_dir)
 
@@ -20,29 +32,59 @@ def get_city_databases():
     root = "/Users/yanisfallet/sql_server/jinka"
     return [database.replace("database_", "").replace(".db", "") for database in os.listdir(root)]
 
+def get_tables(city, conn):
+    return pd.read_sql_query("SELECT name FROM sqlite_master WHERE type='table'", conn)
+
 @authentication_error_decorator
 def authentificate_wrapper():
     return authenticate(email, password)
 
-databases = get_city_databases()
+with st.sidebar:
+    st.title(':blue[DASHBOARD]')
+    st.write('Please enter your credentials below.')
+    email = st.text_input('Email', key='email', value='yanis.fallet@gmail.com')
+    password = st.text_input('Password', key='password', type='password', value="yanoufallet38618")
 
-st.sidebar.title(':blue[DASHBOARD]')
-st.sidebar.write('Please enter your credentials below.')
-email = st.sidebar.text_input('Email', key='email', value='yanis.fallet@gmail.com')
-password = st.sidebar.text_input('Password', key='password', type='password', value="")
+    update = st.button('Fetch new ads', key='update')
+        
+    databases = get_city_databases()
 
-update = st.sidebar.button('Fetch new ads', key='update')
-    
-if update:
-    if authentificate_wrapper():
-        st.sidebar.info('Fetching new ads...')
-        update_all_alerts(email=email, password=password)
-        with open('api_utils.log', 'r') as f:
-            data = [line.strip("\n").split("-")[4] for line in f.readlines()[-len(databases)+1:]]
-        for elem in data:
-            st.sidebar.info(elem)
+    if update:
+        if authentificate_wrapper():
+            st.info('Fetching new ads...')
+            update_all_alerts(email=email, password=password)
+            with open('api_utils.log', 'r') as f:
+                data = [line.strip("\n").split("-")[4] for line in f.readlines()[-len(databases)-1:]]
+            for elem in data:
+                st.info(elem)
+
+
+unique_city, cities_comparison = st.tabs(["City", "Cities comparison"])
+
+with unique_city:
+    city = st.selectbox('Pick a city', databases, key='database')
+    conn = sqlite3.connect(f"/Users/yanisfallet/sql_server/jinka/database_{city}.db")
+    data_available = pd.read_sql_query("SELECT name FROM sqlite_master WHERE type='table'", conn)
+    if data_available.shape[0] == 2:
+        rent, invest, combined_invest_rent, macro = st.tabs(["Rent", "Invest", "Combined invest & rent", "Macro"])
+        with rent:
+            df = pd.read_sql_query(f"SELECT area, pm2, room, link FROM ads_{city}_for_rent", conn)
+        with invest:
+            invest_.app_invest(city, conn)
+        with combined_invest_rent:
+            pass
+    elif data_available.iloc[0]["name"].endswith("rent"):
+        rent, macro= st.tabs(["Rent", "Macro"])
+    else :
+        invest, macro = st.tabs(["Invest", "Macro"])
+        with invest:
+            invest_.app_invest(city, conn)
             
-st.selectbox('Select a city', options=databases, key='city')
+
+with cities_comparison:
+    pass
+            
+
     
 
 

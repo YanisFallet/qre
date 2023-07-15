@@ -1,12 +1,11 @@
 import requests
 import logging
 import pandas as pd
+import json
 import sqlite3
-from unidecode import unidecode
 from functools import partial
 from concurrent.futures import ThreadPoolExecutor
-
-logging.basicConfig(filename='api_utils.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(filename='api_utils.log',filemode="w" , level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def authenticate(email, password):
     auth_url = 'https://api.jinka.fr/apiv2/user/auth'
@@ -39,13 +38,20 @@ def get_alerts(session : requests.Session, headers):
     r_alerts = session.get('https://api.jinka.fr/apiv2/alert', headers=headers)
     df_alerts = pd.DataFrame(columns=['id', 'name', 'user_name', 'ads_per_day'])
     data_dict = {'id':[], 'name':[], 'user_name':[], 'ads_per_day':[], 'nb_pages':[], 'all':[], 'read':[],
-    'unread':[], 'favorite':[], 'contact':[], 'deleted':[]}
+    'unread':[], 'favorite':[], 'contact':[], 'deleted':[], 'type':[], 'zone' : [], 'token':[]}
     for counter, alert in enumerate(r_alerts.json()):
 
         data_dict['id'].append(alert['id'])
         data_dict['name'].append(alert['name'])
         data_dict['user_name'].append(alert['user_name'])
         data_dict['ads_per_day'].append(alert['estimated_ads_per_day'])
+        data_dict['type'].append(alert['search_type'])
+        data_dict['zone'].append([zone['name'] for zone in alert['where_zone']])
+        data_dict['token'].append(alert['token'])
+        
+        if len(alert["where_zone"]) == 0:
+            data_dict['zone'].pop()
+            data_dict['zone'].append([alert['geopoints'][0]["latLng"], alert['geopoints'][0]["radius"]])
 
         root_url = 'https://api.jinka.fr/apiv2/alert/' + str(alert['id']) + '/dashboard' 
 
@@ -64,22 +70,29 @@ def get_alerts(session : requests.Session, headers):
     df_alerts = pd.DataFrame(data=data_dict)  
     return df_alerts
 
+def build_link(token, id):
+    return f"https://www.jinka.fr/alert_result?token={token}&ad={id}&from=dashboard_card&from_alert_filter=all"
+
 def update_one_alert(session : requests.Session, headers, alert_serie : tuple):
     alert_serie_content = alert_serie[1]
-    city = unidecode(alert_serie_content['user_name'].replace(' ', '_').replace("'", "_").lower())
+    if isinstance(alert_serie_content['zone'][0], list):
+        city = alert_serie_content['user_name'].strip().replace(" ", "_")
+    else :
+        city = "_".join(alert_serie_content['zone']).replace("-",'_')
+    search_type = alert_serie_content['type']
     root_url = 'https://api.jinka.fr/apiv2/alert/' + str(alert_serie_content["id"]) + '/dashboard'
     df_apparts = pd.DataFrame(columns= ['id', 'source', 'source_label', 'search_type', 'owner_type', \
         'rent', 'area', 'room', 'bedroom', 'floor', 'type', 'buy_type', 'city', 'postal_code', 'lat', 'lng',  'furnished', \
         'description', 'created_at', 'expired_at', 'sendDate', \
-        'new_real_estate', 'features', 'alert_id'])
+        'new_real_estate', 'features', 'alert_id', 'link'])
     
     with sqlite3.connect(f"/Users/yanisfallet/sql_server/jinka/database_{city}.db") as conn:
         c = conn.cursor()
-        if_exists = c.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='ads_{city}'").fetchall()
+        if_exists = c.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='ads_{city}_{search_type}'").fetchall()
         if len(if_exists) == 0:
             id = []
         else :
-            id = c.execute(f"SELECT id FROM ads_{city}").fetchall()
+            id = c.execute(f"SELECT id FROM ads_{city}_{search_type}").fetchall()
             id = [i[0] for i in id]
         page = 0
         flag = True
@@ -90,21 +103,31 @@ def update_one_alert(session : requests.Session, headers, alert_serie : tuple):
                 if ad['id'] in id:
                     flag = False
                     break
-                else:
-                    df_apparts = pd.concat([df_apparts,pd.DataFrame.from_records(data=[ad])], axis=0, join="inner")
+                elif ad["new_real_estate"] == None:
+                    df_temp = pd.DataFrame.from_records(data=[ad])
+                    df_temp['link'] = build_link(alert_serie_content['token'], ad['id'])
+                    df_apparts = pd.concat([df_apparts,df_temp], axis=0, join="inner")
             page += 1            
         logging.info(f'{len(df_apparts)} new ads have been found for alert {alert_serie_content["user_name"]}')
         df_apparts["pm2"] = df_apparts["rent"] / df_apparts["area"]
         df_apparts['features'] = df_apparts['features'].apply(lambda x: str(x))
         df_apparts['new_real_estate'] = df_apparts['new_real_estate'].apply(lambda x: str(x))
-        df_apparts.to_sql(f'ads_{city}', conn, if_exists='append', index=False)
+        df_apparts.to_sql(f'ads_{city}_{search_type}', conn, if_exists='append', index=False)
 
 def update_all_alerts(email : str, password : str):
     session, headers = authenticate(email, password)
     df_alerts = get_alerts(session, headers)
     with ThreadPoolExecutor() as executor:
         executor.map(partial(update_one_alert, session, headers), df_alerts.iterrows())
+        
+        
+def update_all_alerts_iterativ(email : str, password : str):
+    session, headers = authenticate(email, password)
+    df_alerts = get_alerts(session, headers)
+    for alert in df_alerts.iterrows():
+        update_one_alert(session, headers, alert)
 
 
 if __name__ == "__main__":
-    get_alerts(*authenticate('yanis.fallet@gmail.com', 'yanoufallet38618'))
+    # update_all_alerts('yanis.fallet@gmail.com', 'yanoufallet38618')
+    update_all_alerts_iterativ('yanis.fallet@gmail.com', 'yanoufallet38618')

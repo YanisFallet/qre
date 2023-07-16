@@ -16,7 +16,8 @@ import combined_
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(parent_dir)
 
-from core.api_utils import authenticate, update_all_alerts
+from core.api_utils import authenticate, update_all_alerts_iterativ
+from core.utilities import clean_databases_outliers
 
 st.set_page_config(layout="wide")
 
@@ -52,7 +53,8 @@ with st.sidebar:
     if update:
         if authentificate_wrapper():
             st.info('Fetching new ads...')
-            update_all_alerts(email=email, password=password)
+            update_all_alerts_iterativ(email=email, password=password)
+            clean_databases_outliers()
             with open('api_utils.log', 'r') as f:
                 data = [line.strip("\n").split("-")[4] for line in f.readlines()[-len(databases)-1:]]
             for elem in data:
@@ -68,17 +70,23 @@ with unique_city:
     if data_available.shape[0] == 2:
         rent, invest, combined_invest_rent, macro = st.tabs(["Rent", "Invest", "Combined invest & rent", "Macro"])
         with rent:
-            df = pd.read_sql_query(f"SELECT area, pm2, room, link FROM ads_{city}_for_rent", conn)
+            rent = rent_.RentApp(city, conn)
+            rent.run()
         with invest:
-            invest_.app_invest(city, conn)
+            inv = invest_.InvestApp(city, conn)
+            inv.run()
         with combined_invest_rent:
             pass
     elif data_available.iloc[0]["name"].endswith("rent"):
         rent, macro= st.tabs(["Rent", "Macro"])
+        with rent :
+            rent = rent_.RentApp(city, conn)
+            rent.run()
     else :
         invest, macro = st.tabs(["Invest", "Macro"])
         with invest:
-            invest_.app_invest(city, conn)
+            inv = invest_.InvestApp(city, conn)
+            inv.run()
             
 
 with cities_comparison:

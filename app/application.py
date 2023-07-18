@@ -54,7 +54,7 @@ with st.sidebar:
         if authentificate_wrapper():
             st.info('Fetching new ads...')
             update_all_alerts_iterativ(email=email, password=password)
-            clean_databases_outliers()
+            # clean_databases_outliers()
             with open('api_utils.log', 'r') as f:
                 data = [line.strip("\n").split("-")[4] for line in f.readlines()[-len(databases)-1:]]
             for elem in data:

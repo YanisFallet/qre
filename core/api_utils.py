@@ -1,10 +1,11 @@
 import requests
 import logging
 import pandas as pd
-import json
 import sqlite3
 from functools import partial
 from concurrent.futures import ThreadPoolExecutor
+from tqdm import tqdm
+
 logging.basicConfig(filename='api_utils.log',filemode="w" , level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def authenticate(email, password):
@@ -73,12 +74,15 @@ def get_alerts(session : requests.Session, headers):
 def build_link(token, id):
     return f"https://www.jinka.fr/alert_result?token={token}&ad={id}&from=dashboard_card&from_alert_filter=all"
 
+def contains_digit(string):
+    return any(char.isdigit() for char in string)
+
 def update_one_alert(session : requests.Session, headers, alert_serie : tuple):
     alert_serie_content = alert_serie[1]
-    if isinstance(alert_serie_content['zone'][0], list):
+    if isinstance(alert_serie_content['zone'][0], list) or contains_digit(alert_serie_content['zone'][0]):
         city = alert_serie_content['user_name'].strip().replace(" ", "_")
     else :
-        city = "_".join(alert_serie_content['zone']).replace("-",'_')
+        city = "_".join(alert_serie_content['zone']).replace("-",'_').replace(" ", "_")
     search_type = alert_serie_content['type']
     root_url = 'https://api.jinka.fr/apiv2/alert/' + str(alert_serie_content["id"]) + '/dashboard'
     df_apparts = pd.DataFrame(columns= ['id', 'source', 'source_label', 'search_type', 'owner_type', \
@@ -124,10 +128,9 @@ def update_all_alerts(email : str, password : str):
 def update_all_alerts_iterativ(email : str, password : str):
     session, headers = authenticate(email, password)
     df_alerts = get_alerts(session, headers)
-    for alert in df_alerts.iterrows():
+    for alert in tqdm(df_alerts.iterrows()):
         update_one_alert(session, headers, alert)
 
 
 if __name__ == "__main__":
-    # update_all_alerts('yanis.fallet@gmail.com', 'yanoufallet38618')
-    update_all_alerts_iterativ('yanis.fallet@gmail.com', 'yanoufallet38618')
+    update_all_alerts_iterativ("yanis.fallet@gmail.com", "yanoufallet38618")

@@ -1,47 +1,4 @@
 import re
-import os
-import pandas as pd
-import sqlite3 as sql
-
-pd.set_option('display.max_rows', None)
-# pd.set_option('display.max_columns', None)
-pd.set_option('display.max_colwidth', None)
-
-def load_description_where_lat_none():
-    """
-    Loads the description of the properties where the latitude and longitude are None
-    """
-    root = "/Users/yanisfallet/sql_server/jinka"
-    description = pd.DataFrame(columns=['description'])
-    for database in os.listdir(root):
-        conn = sql.connect(os.path.join(root, database))
-        tables = pd.read_sql_query("SELECT name FROM sqlite_master WHERE type='table'", conn)
-        for table in tables['name']:
-            df = pd.read_sql_query("SELECT description FROM {0} WHERE lat IS NULL".format(table), conn)
-            description = pd.concat([description, df], axis = 0)
-    return description
-
-def load_all_description():
-    root = "/Users/yanisfallet/sql_server/jinka"
-    description = pd.DataFrame(columns=['description'])
-    for database in os.listdir(root):
-        conn = sql.connect(os.path.join(root, database))
-        tables = pd.read_sql_query("SELECT name FROM sqlite_master WHERE type='table'", conn)
-        for table in tables['name']:
-            df = pd.read_sql_query("SELECT description FROM {0}".format(table), conn)
-            description = pd.concat([description, df], axis = 0)
-    return description
-
-def load_description_where_lat_not_none():
-    root = "/Users/yanisfallet/sql_server/jinka"
-    description = pd.DataFrame(columns=['description'])
-    for database in os.listdir(root):
-        conn = sql.connect(os.path.join(root, database))
-        tables = pd.read_sql_query("SELECT name FROM sqlite_master WHERE type='table'", conn)
-        for table in tables['name']:
-            df = pd.read_sql_query("SELECT description FROM {0} WHERE lat IS NOT NULL".format(table), conn)
-            description = pd.concat([description, df], axis = 0)
-    return description
 
 def extract_address(text):
     # Define the list of keywords to look for
@@ -79,7 +36,7 @@ def extract_address(text):
                     address = ' '.join(text[start:].split()[0:counter])
                     i += 1
                     flag = True
-                if word[-1] in [',', ':', '.', '\n', "-", '*', ';', '?'] or word[0] in [',', ':', '.', '\n', '-', '*', ';', '?']:
+                if word[-1] in [',', ':', '.', '\n', "-", '*', ';', '?', '!'] or word[0] in [',', ':', '.', '\n', '-', '*', ';', '?', '!']:
                     not_valid_address = False
                     break
             
@@ -90,11 +47,3 @@ def extract_address(text):
         if address :        
             addresses.append(re.split(f"[.,;:]", address)[0])
     return addresses
-
-
-if __name__ == "__main__":
-    description = load_description_where_lat_none()
-    description["addresses_v2"] = description['description'].apply(extract_address)
-    print(description[description['addresses_v2'].apply(lambda x: len(x) > 0)].shape[0] / description.shape[0])
-    print(description)
-    

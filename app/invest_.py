@@ -14,7 +14,7 @@ class InvestApp:
         self.data = pd.read_sql_query(f"SELECT area, pm2, room, link, created_at, id FROM ads_{city}_for_invest", conn)
         self.df = self.data[['area', 'pm2', 'room', 'link']]
         self.historical = self.data[['created_at', 'pm2', 'id']]
-        self.geo_coord = pd.read_sql_query(f"SELECT lat, lng, pm2 FROM ads_{city}_for_invest WHERE lat != 'None'", conn)
+        self.geo_coord = pd.read_sql_query(f"SELECT lat, lng, pm2, source FROM ads_{city}_for_invest WHERE lat != 'None'", conn)
         self.COLOR_RANGE = [
             [65, 182, 196],
             [127, 205, 187],
@@ -96,7 +96,7 @@ class InvestApp:
         r = pdk.Deck(
             layers=[layer],
             initial_view_state=initial_view_state,
-            tooltip={"text": "PM2: {pm2}"}
+            tooltip={"text": "PM2: {pm2}, Source: {source}"}
         )
         return r
     

@@ -1,10 +1,14 @@
 import requests
+import os
 import logging
 import pandas as pd
 import sqlite3
 from functools import partial
 from concurrent.futures import ThreadPoolExecutor
 from tqdm import tqdm
+
+from encode import encodage
+from address_extraction import extract_address
 
 logging.basicConfig(filename='api_utils.log',filemode="w" , level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -77,7 +81,7 @@ def build_link(token, id):
 def contains_digit(string):
     return any(char.isdigit() for char in string)
 
-def update_one_alert(session : requests.Session, headers, alert_serie : tuple):
+def update_one_alert(session : requests.Session, headers, alert_serie : tuple, to_geocode = False):
     alert_serie_content = alert_serie[1]
     if isinstance(alert_serie_content['zone'][0], list) or contains_digit(alert_serie_content['zone'][0]):
         city = alert_serie_content['user_name'].strip().replace(" ", "_")
@@ -88,9 +92,9 @@ def update_one_alert(session : requests.Session, headers, alert_serie : tuple):
     df_apparts = pd.DataFrame(columns= ['id', 'source', 'source_label', 'search_type', 'owner_type', \
         'rent', 'area', 'room', 'bedroom', 'floor', 'type', 'buy_type', 'city', 'postal_code', 'lat', 'lng',  'furnished', \
         'description', 'created_at', 'expired_at', 'sendDate', \
-        'new_real_estate', 'features', 'alert_id', 'link'])
+        'new_real_estate', 'features', 'alert_id', 'link', 'processed'])
     
-    with sqlite3.connect(f"/Users/yanisfallet/sql_server/jinka/database_{city}.db") as conn:
+    with sqlite3.connect(os.path.join(os.path.expanduser('~'), f"sql_server/jinka/database_{city}.db")) as conn:
         c = conn.cursor()
         if_exists = c.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='ads_{city}_{search_type}'").fetchall()
         if len(if_exists) == 0:
@@ -110,6 +114,15 @@ def update_one_alert(session : requests.Session, headers, alert_serie : tuple):
                 elif ad["new_real_estate"] == None:
                     df_temp = pd.DataFrame.from_records(data=[ad])
                     df_temp['link'] = build_link(alert_serie_content['token'], ad['id'])
+                    if df_temp['lat'].isna().bool():
+                        df_temp['processed'] = False
+                        if to_geocode:
+                            adr = extract_address(df_temp['description'].values[0])
+                            if len(adr) > 0:
+                                df_temp['lng'], df_temp['lat'] = encodage(adr, df_temp['postal_code'].values[0], df_temp['city'].values[0])
+                    else :
+                        df_temp['processed'] = True
+                    id.append(ad['id'])
                     df_apparts = pd.concat([df_apparts,df_temp], axis=0, join="inner")
             page += 1            
         logging.info(f'{len(df_apparts)} new ads have been found for alert {alert_serie_content["user_name"]}')
@@ -117,20 +130,12 @@ def update_one_alert(session : requests.Session, headers, alert_serie : tuple):
         df_apparts['features'] = df_apparts['features'].apply(lambda x: str(x))
         df_apparts['new_real_estate'] = df_apparts['new_real_estate'].apply(lambda x: str(x))
         df_apparts.to_sql(f'ads_{city}_{search_type}', conn, if_exists='append', index=False)
-
+        
 def update_all_alerts(email : str, password : str):
     session, headers = authenticate(email, password)
     df_alerts = get_alerts(session, headers)
-    with ThreadPoolExecutor() as executor:
+    with ThreadPoolExecutor(max_workers=10) as executor:
         executor.map(partial(update_one_alert, session, headers), df_alerts.iterrows())
-        
-        
-def update_all_alerts_iterativ(email : str, password : str):
-    session, headers = authenticate(email, password)
-    df_alerts = get_alerts(session, headers)
-    for alert in tqdm(df_alerts.iterrows()):
-        update_one_alert(session, headers, alert)
-
-
+    
 if __name__ == "__main__":
-    update_all_alerts_iterativ("yanis.fallet@gmail.com", "yanoufallet38618")
+    update_all_alerts('yanis.fallet@gmail.com', 'yanoufallet38618')

@@ -11,10 +11,10 @@ class RentApp:
     def __init__(self, city, conn):
         self.city = city
         self.conn = conn
-        self.data = pd.read_sql_query(f"SELECT area, pm2, room, link, created_at, id FROM ads_{city}_for_rent", conn)
-        self.df = self.data[['area', 'pm2', 'room', 'link']]
+        self.data = pd.read_sql_query(f"SELECT area, pm2, room, link, source, created_at, id FROM ads_{city}_for_rent", conn)
+        self.df = self.data[['area', 'pm2', 'room', 'source']]
         self.historical = self.data[['created_at', 'pm2', 'id']]
-        self.geo_coord = pd.read_sql_query(f"SELECT lat, lng, pm2 FROM ads_{city}_for_rent WHERE lat != 'None'", conn)
+        self.geo_coord = pd.read_sql_query(f"SELECT lat, lng, pm2, source FROM ads_{city}_for_rent WHERE lat != 'None'", conn)
         self.COLOR_RANGE = [
             [65, 182, 196],
             [127, 205, 187],
@@ -38,7 +38,7 @@ class RentApp:
     
     def plot_pm2_vs_area(self):
         fig, ax = plt.subplots(figsize=(7, 5))
-        fig = px.scatter(self.df, x="area", y="pm2", color="room", hover_data=['link'], trendline="ols", color_continuous_scale=px.colors.sequential.Viridis, trendline_color_override="red", log_y=False)
+        fig = px.scatter(self.df, x="area", y="pm2", color="room", hover_data=['source'], trendline="ols", color_continuous_scale=px.colors.sequential.Viridis, trendline_color_override="red", log_y=False)
         fig.update_traces(marker_size=3)
         fig.update_layout(
             xaxis_title="Area",
@@ -96,7 +96,7 @@ class RentApp:
         r = pdk.Deck(
             layers=[layer],
             initial_view_state=initial_view_state,
-            tooltip={"text": "PM2: {pm2}"}
+            tooltip={"text": "PM2: {pm2}, Source: {source}"}
         )
         return r
     

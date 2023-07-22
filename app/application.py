@@ -16,7 +16,7 @@ import combined_
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(parent_dir)
 
-from core.api_utils import authenticate, update_all_alerts_iterativ
+from core.api_utils import authenticate, update_all_alerts
 from core.utilities import clean_databases_outliers
 
 st.set_page_config(layout="wide")
@@ -53,7 +53,7 @@ with st.sidebar:
     if update:
         if authentificate_wrapper():
             st.info('Fetching new ads...')
-            update_all_alerts_iterativ(email=email, password=password)
+            update_all_alerts(email=email, password=password)
             # clean_databases_outliers()
             with open('api_utils.log', 'r') as f:
                 data = [line.strip("\n").split("-")[4] for line in f.readlines()[-len(databases)-1:]]

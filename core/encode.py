@@ -1,11 +1,16 @@
 import requests
-import os
 import urllib.parse
 import logging
 
-from address_extraction import extract_address
+import sys, os
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', filemode='w', filename='encode.log')
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(parent_dir)
+
+from core.address_extraction import extract_address
+from core.utilities import connect_to_database
+
+
 
 def encodage(lieux : list, postcode : str, city):
     api_url = "https://api-adresse.data.gouv.fr/search/?q="
@@ -30,25 +35,15 @@ def encodage(lieux : list, postcode : str, city):
         logging.info("Encoding succeeded => " + str(score[max(score.keys())]))
         return score[max(score.keys())]
     
-    
-def manual_encoding():
-    root = "/Users/yanisfallet/sql_server/jinka/"
-    for database in os.listdir(root):
-        conn = sqlite3.connect(os.path.join(root, database))
-        tables = pd.read_sql_query("SELECT name FROM sqlite_master WHERE type='table'", conn)
-        for table in tables.itertuples():
-            lat_none = pd.read_sql_query(f"SELECT description, postal_code, city, id FROM {table[0]} WHERE processed = 'False'", conn)
-            for row in lat_none.itertuples():
-                lng, lat = encodage(extract_address(row[1]), row[2], row[3])
+@connect_to_database
+def manual_encoding(cursor, table_name):
+    lat_none = cursor.execute(f"SELECT description, postal_code, city, id FROM {table_name} WHERE processed = 0").fetchall()
+    for row in lat_none:
+        lng, lat = encodage(extract_address(row[0]), row[1], row[2])
+        cursor.execute(f"UPDATE {table_name} SET lat = '{lat}', lng = '{lng}', processed = 1 WHERE id = '{row[3]}'")
                 
                 
-                
-        pass
 if __name__ == "__main__":
-    import sqlite3
-    import pandas as pd
-    lat_none = pd.read_sql_query("SELECT description, postal_code FROM ads_Grenoble_for_invest WHERE lat IS NULL", sqlite3.connect("/Users/yanisfallet/sql_server/jinka/database_Grenoble.db"))
-    for row in lat_none.itertuples():
-        encodage(extract_address(row[1]), row[2], 'Grenoble')
+    manual_encoding()
 
         

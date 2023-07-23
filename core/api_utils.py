@@ -5,14 +5,18 @@ import pandas as pd
 import sqlite3
 from functools import partial
 from concurrent.futures import ThreadPoolExecutor
-from tqdm import tqdm
 
-from encode import encodage
-from address_extraction import extract_address
+import sys
+
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(parent_dir)
+
+from core.encode import encodage
+from core.address_extraction import extract_address
 
 logging.basicConfig(filename='api_utils.log',filemode="w" , level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def authenticate(email, password):
+def authentificate(email, password):
     auth_url = 'https://api.jinka.fr/apiv2/user/auth'
     auth_dict = {'email':email, 'password':password}
     s = requests.Session()
@@ -81,7 +85,7 @@ def build_link(token, id):
 def contains_digit(string):
     return any(char.isdigit() for char in string)
 
-def update_one_alert(session : requests.Session, headers, alert_serie : tuple, to_geocode = False):
+def update_one_alert(session : requests.Session, headers, to_geocode : bool ,alert_serie : tuple):
     alert_serie_content = alert_serie[1]
     if isinstance(alert_serie_content['zone'][0], list) or contains_digit(alert_serie_content['zone'][0]):
         city = alert_serie_content['user_name'].strip().replace(" ", "_")
@@ -122,7 +126,7 @@ def update_one_alert(session : requests.Session, headers, alert_serie : tuple, t
                                 df_temp['lng'], df_temp['lat'] = encodage(adr, df_temp['postal_code'].values[0], df_temp['city'].values[0])
                     else :
                         df_temp['processed'] = True
-                    id.append(ad['id'])
+                    # id.append(ad['id'])
                     df_apparts = pd.concat([df_apparts,df_temp], axis=0, join="inner")
             page += 1            
         logging.info(f'{len(df_apparts)} new ads have been found for alert {alert_serie_content["user_name"]}')
@@ -131,11 +135,11 @@ def update_one_alert(session : requests.Session, headers, alert_serie : tuple, t
         df_apparts['new_real_estate'] = df_apparts['new_real_estate'].apply(lambda x: str(x))
         df_apparts.to_sql(f'ads_{city}_{search_type}', conn, if_exists='append', index=False)
         
-def update_all_alerts(email : str, password : str):
-    session, headers = authenticate(email, password)
+def update_all_alerts(email : str, password : str, to_geocode : bool = False):
+    session, headers = authentificate(email, password)
     df_alerts = get_alerts(session, headers)
     with ThreadPoolExecutor(max_workers=10) as executor:
-        executor.map(partial(update_one_alert, session, headers), df_alerts.iterrows())
+        executor.map(partial(update_one_alert, session, headers, to_geocode), df_alerts.iterrows())
     
 if __name__ == "__main__":
     update_all_alerts('yanis.fallet@gmail.com', 'yanoufallet38618')

@@ -1,12 +1,6 @@
 import os, sys, sqlite3
 import pandas as pd
 import streamlit as st
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-import plotly.express as px
-from plotly.subplots import make_subplots
 
 import invest_
 import rent_
@@ -16,7 +10,7 @@ import combined_
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(parent_dir)
 
-from core.api_utils import authenticate, update_all_alerts
+from core.api_utils import authentificate, update_all_alerts
 from core.utilities import clean_databases_outliers
 
 st.set_page_config(layout="wide")
@@ -38,7 +32,7 @@ def get_tables(city, conn):
 
 @authentication_error_decorator
 def authentificate_wrapper():
-    return authenticate(email, password)
+    return authentificate(email, password)
 
 with st.sidebar:
     st.title(':blue[DASHBOARD]')

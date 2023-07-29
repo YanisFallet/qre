@@ -39,8 +39,6 @@ def extract_address(text):
                 if word[-1] in [',', ':', '.', '\n', "-", '*', ';', '?', '!'] or word[0] in [',', ':', '.', '\n', '-', '*', ';', '?', '!']:
                     not_valid_address = False
                     break
-            
-            
             if flag :
                 not_valid_address = False
             max_iter -= 1

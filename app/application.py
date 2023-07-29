@@ -2,8 +2,7 @@ import os, sys, sqlite3
 import pandas as pd
 import streamlit as st
 
-import invest_
-import rent_
+import model_
 import macro_
 import combined_
 
@@ -64,23 +63,33 @@ with unique_city:
     if data_available.shape[0] == 2:
         rent, invest, combined_invest_rent, macro = st.tabs(["Rent", "Invest", "Combined invest & rent", "Macro"])
         with rent:
-            rent = rent_.RentApp(city, conn)
+            rent = model_.ModelApp(city, conn, "rent")
             rent.run()
         with invest:
-            inv = invest_.InvestApp(city, conn)
+            inv = model_.ModelApp(city, conn, "invest")
             inv.run()
         with combined_invest_rent:
             pass
+        # with macro:
+        #     macro = macro_.MacroApp(city)
+        #     macro.run()
+            
     elif data_available.iloc[0]["name"].endswith("rent"):
         rent, macro= st.tabs(["Rent", "Macro"])
         with rent :
-            rent = rent_.RentApp(city, conn)
+            rent = model_.ModelApp(city, conn, "rent")
             rent.run()
+        # with macro:
+        #     macro = macro_.MacroApp(city)
+        #     macro.run()
     else :
         invest, macro = st.tabs(["Invest", "Macro"])
         with invest:
-            inv = invest_.InvestApp(city, conn)
+            inv = model_.ModelApp(city, conn, "invest")
             inv.run()
+        # with macro:
+        #     macro = macro_.MacroApp(city)
+        #     macro.run()
             
 
 with cities_comparison:

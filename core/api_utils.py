@@ -96,25 +96,27 @@ def update_one_alert(session : requests.Session, headers, to_geocode : bool ,ale
     df_apparts = pd.DataFrame(columns= ['id', 'source', 'source_label', 'search_type', 'owner_type', \
         'rent', 'area', 'room', 'bedroom', 'floor', 'type', 'buy_type', 'city', 'postal_code', 'lat', 'lng',  'furnished', \
         'description', 'created_at', 'expired_at', 'sendDate', \
-        'new_real_estate', 'features', 'alert_id', 'link', 'processed'])
+        'new_real_estate', 'features', 'alert_id', 'link', 'processed', 'auto_id'])
     
     with sqlite3.connect(os.path.join(os.path.expanduser('~'), f"sql_server/jinka/database_{city}.db")) as conn:
         c = conn.cursor()
         if_exists = c.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='ads_{city}_{search_type}'").fetchall()
         if len(if_exists) == 0:
-            id = []
+            id_list = []
         else :
-            id = c.execute(f"SELECT id FROM ads_{city}_{search_type}").fetchall()
-            id = [i[0] for i in id]
+            id_list = [i[0] for i in c.execute(f"SELECT id FROM 'ads_{city}_{search_type}'").fetchall()]
         page = 0
+        count = 0
         flag = True
         while page <= alert_serie_content["nb_pages"] and flag:
             target_url = root_url + f'?filter=all&page={page}&sorting=default'
             data_apparts = session.get(target_url, headers=headers).json()['ads']
             for ad in data_apparts :
-                if ad['id'] in id:
-                    flag = False
-                    break
+                if ad['id'] in id_list:
+                    count += 1
+                    if count > 25:
+                        flag = False
+                        break
                 elif ad["new_real_estate"] == None:
                     df_temp = pd.DataFrame.from_records(data=[ad])
                     df_temp['link'] = build_link(alert_serie_content['token'], ad['id'])
@@ -126,8 +128,9 @@ def update_one_alert(session : requests.Session, headers, to_geocode : bool ,ale
                                 df_temp['lng'], df_temp['lat'] = encodage(adr, df_temp['postal_code'].values[0], df_temp['city'].values[0])
                     else :
                         df_temp['processed'] = True
-                    # id.append(ad['id'])
                     df_apparts = pd.concat([df_apparts,df_temp], axis=0, join="inner")
+                    id_list.append(ad['id'])
+                    count = 0
             page += 1            
         logging.info(f'{len(df_apparts)} new ads have been found for alert {alert_serie_content["user_name"]}')
         df_apparts["pm2"] = df_apparts["rent"] / df_apparts["area"]
@@ -142,4 +145,4 @@ def update_all_alerts(email : str, password : str, to_geocode : bool = False):
         executor.map(partial(update_one_alert, session, headers, to_geocode), df_alerts.iterrows())
     
 if __name__ == "__main__":
-    update_all_alerts('yanis.fallet@gmail.com', 'yanoufallet38618')
+    update_all_alerts('yanis.fallet@gmail.com', 'yanoufallet38618', to_geocode=True)

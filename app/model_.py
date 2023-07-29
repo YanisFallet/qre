@@ -7,14 +7,16 @@ import numpy as np
 import pydeck as pdk
 import matplotlib.pyplot as plt
 
-class InvestApp:
-    def __init__(self, city, conn):
+class ModelApp:
+    def __init__(self, city, conn, mode):
+        self.mode = mode
         self.city = city
         self.conn = conn
-        self.data = pd.read_sql_query(f"SELECT area, pm2, room, link, created_at, id FROM ads_{city}_for_invest", conn)
+        self.data = pd.read_sql_query(f"SELECT area, pm2, room, link, created_at, id FROM ads_{city}_for_{self.mode}", conn)
         self.df = self.data[['area', 'pm2', 'room', 'link']]
         self.historical = self.data[['created_at', 'pm2', 'id']]
-        self.geo_coord = pd.read_sql_query(f"SELECT lat, lng, pm2, source FROM ads_{city}_for_invest WHERE lat != 'None'", conn)
+        self.tensions = pd.read_sql_query(f"SELECT created_at, expired_at FROM ads_{city}_for_{self.mode} WHERE expired_at IS NOT NULL", conn)
+        self.geo_coord = pd.read_sql_query(f"SELECT lat, lng, pm2, source FROM ads_{city}_for_{self.mode} WHERE lat != 'None' AND expired_at IS NULL", conn)
         self.COLOR_RANGE = [
             [65, 182, 196],
             [127, 205, 187],
@@ -33,7 +35,7 @@ class InvestApp:
         self.BREAKS = np.quantile(self.df["pm2"], np.linspace(0, 1, len(self.COLOR_RANGE))).tolist()
                 
     def screener_pm2(self):
-        load_pm2_rent_for_invest = pd.read_sql_query(f"SELECT pm2, rent,link FROM ads_{self.city}_for_invest ", self.conn)
+        load_pm2_rent_for_invest = pd.read_sql_query(f"SELECT pm2, rent,link FROM ads_{self.city}_for_{self.mode} ", self.conn)
         return load_pm2_rent_for_invest.sort_values(by="pm2", ascending=True)
     
     def plot_pm2_vs_area(self):
@@ -84,13 +86,13 @@ class InvestApp:
             get_elevation="elevation",
             get_fill_color="fill_color",
             pickable=True,
-            radius = 20,
+            radius = 15,
         )
         initial_view_state = pdk.ViewState(
             latitude=self.geo_coord["lat"].mean(),
             longitude=self.geo_coord["lng"].mean(),
             zoom=11,
-            pitch=50,
+            pitch=45,
             bearing=self.bearing
         )
         r = pdk.Deck(
@@ -109,11 +111,18 @@ class InvestApp:
         fig.add_trace(go.Bar(x=self.resample.index, y=self.resample['id'], name="Number of Assets", offsetgroup=2, opacity=0.2), secondary_y=True)
         fig.update_layout(title="Historical PM2")
         return fig
+    
+    def plot_market_tension(self):
+        self.tensions["days_on_the_market"] = (pd.to_datetime(self.tensions["expired_at"]) - pd.to_datetime(self.tensions["created_at"])).dt.days
+        return px.histogram(self.tensions, x="days_on_the_market", nbins=100, title="Market Tension")
+        
+        
         
     def run(self):
         col1, col2 = st.columns([2,1])
         col2.dataframe(self.screener_pm2(), hide_index=True)
         col1.plotly_chart(self.plot_pm2_vs_area())
-        self.bearing = st.select_slider("Move the bearing", options=[0, 45, 90, 135, 180, 225, 270, 315], value=0, key="bearing_invest")
+        self.bearing = st.select_slider("Move the bearing", options=[0, 45, 90, 135, 180, 225, 270, 315], value=0, key=f"bearing_{self.mode}")
         st.pydeck_chart(self.plot_map())
         st.plotly_chart(self.plot_historical_pm2())
+        st.plotly_chart(self.plot_market_tension())

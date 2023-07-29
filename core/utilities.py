@@ -24,20 +24,10 @@ def clean_databases_outliers(cursor, table_name, feature):
     x = np.array([row[0] for row in data], dtype=float)
     y = np.array([row[1] for row in data], dtype=float)
     z_scores = np.abs(stats.zscore(y))
-    outliers = np.where(z_scores > 6)[0]
+    outliers = np.where(z_scores > 4)[0]
     for i in outliers:
         logging.info(f"Deleting {x[i]} from {table_name}")
         cursor.execute(f"DELETE FROM {table_name} WHERE id = ?", (x[i],))
-
-@connect_to_database
-def clean_databases_duplicates(cursor, table_name):
-    cursor.execute(f"""
-        DELETE FROM {table_name} WHERE id NOT IN (
-            SELECT MIN(id) FROM {table_name} GROUP BY pm2, sendDate
-        )
-    """)
-    logging.info(f"Deleted {cursor.rowcount} duplicates from {table_name}")
-
 
 @connect_to_database
 def clean_source(cursor, table_name, source):
@@ -46,7 +36,14 @@ def clean_source(cursor, table_name, source):
     """)
     logging.info(f"Deleted {cursor.rowcount} ads from {table_name} of source {source}")
 
+
+@connect_to_database
+def remove_duplicates_by_grouping(cursor, table_name):
+    cursor.execute(f"SELECT id, COUNT(*) FROM {table_name} GROUP BY id HAVING COUNT(*) > 1")
+
+                
 if __name__ == "__main__":
     clean_databases_outliers("pm2")
-    clean_databases_duplicates()
+    clean_databases_outliers("area")
+    # remove_duplicates()
     clean_source('morningcroissant')

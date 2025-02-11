@@ -1,4 +1,4 @@
-# Real Estate Dashboard
+# Real Time Streaming of Real Estate Data
 
 This project is a real estate dashboard application built using Streamlit. It allows users to fetch and analyze real estate data ON THE MARKET RIGHT NOW from various cities, providing insights into rental and investment opportunities.
 
